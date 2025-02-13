@@ -2,6 +2,7 @@ import os
 import re
 import shutil
 from typing import Dict, List, Tuple
+import requests
 
 class DockerComposeManager:
     """Docker Compose 文件管理器"""
@@ -67,6 +68,45 @@ class DockerComposeManager:
         
         if os.path.exists(compose_path) and not os.path.exists(example_path):
             shutil.copy2(compose_path, example_path)
+        
+    def _download_file(self, url: str, target_path: str) -> None:
+        """从 URL 下载文件
+        
+        Args:
+            url: 文件的 URL
+            target_path: 目标文件路径
+        """
+        try:
+            response = requests.get(url)
+            response.raise_for_status()
+            
+            # 确保目标目录存在
+            os.makedirs(os.path.dirname(target_path), exist_ok=True)
+            
+            # 写入文件
+            with open(target_path, 'wb') as f:
+                f.write(response.content)
+                
+        except Exception as e:
+            print(f"Error downloading file from {url}: {e}")
+            raise
+            
+    def download_files(self) -> None:
+        """下载所需的文件"""
+        # 下载 docker-compose.yml
+        self._download_file(
+            'https://raw.githubusercontent.com/lobehub/lobe-chat/main/docker-compose/docker-compose.yml',
+            os.path.join(self.install_dir, 'docker-compose.yml')
+        )
+        
+        # 下载 .env.example
+        self._download_file(
+            'https://raw.githubusercontent.com/lobehub/lobe-chat/main/docker-compose/local/.env.example',
+            os.path.join(self.install_dir, '.env.example')
+        )
+        
+        # 保存一份 docker-compose.yml.example
+        shutil.copy2(os.path.join(self.install_dir, 'docker-compose.yml'), os.path.join(self.install_dir, 'docker-compose.yml.example'))
         
     def update_docker_compose(self, port_config: Dict[str, int]) -> None:
         """更新 docker-compose.yml 文件中的端口映射

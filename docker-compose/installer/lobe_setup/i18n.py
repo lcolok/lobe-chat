@@ -33,6 +33,8 @@ class I18n:
                 'mode_domain': 'Domain mode (custom domain)',
                 'postgres_port_conflict': 'PostgreSQL default port {port} is already in use.',
                 'postgres_port_prompt': 'Please enter PostgreSQL port number (default: {port})',
+                'ask_add_custom_host': 'Do you want to add another hostname?',
+                'ask_custom_host': 'Please enter the hostname (e.g., example.com)',
             },
             'zh_CN': {
                 'ask_install_dir': '安装目录（上次：{last_dir}）',
@@ -58,6 +60,8 @@ class I18n:
                 'mode_domain': '域名模式（自定义域名）',
                 'postgres_port_conflict': 'PostgreSQL 默认端口 {port} 已被占用。',
                 'postgres_port_prompt': '请输入 PostgreSQL 端口号（默认：{port}）',
+                'ask_add_custom_host': '是否需要添加其他主机名？',
+                'ask_custom_host': '请输入主机名（例如：example.com）',
             }
         }
         
