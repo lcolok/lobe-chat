@@ -1,5 +1,6 @@
 import os
 import re
+import shutil
 from typing import Dict, List, Tuple
 
 class DockerComposeManager:
@@ -23,17 +24,17 @@ class DockerComposeManager:
         Returns:
             str: 更新后的内容
         """
-        # 这些是需要对外暴露的端口
+        # 使用环境变量的端口映射格式
         ports = [
-            (port_config["minio"], port_config["minio"], "MinIO API"),
-            (port_config["minio_console"], 9001, "MinIO Console"),
-            (port_config["casdoor"], port_config["casdoor"], "Casdoor"),
-            (port_config["lobe"], 3210, "LobeChat")
+            ("${MINIO_PORT}:${MINIO_PORT}", "MinIO API"),
+            ("9001:9001", "MinIO Console"),
+            ("${CASDOOR_PORT}:8000", "Casdoor"),
+            ("${LOBE_PORT}:3210", "LobeChat")
         ]
         
         ports_section = "\n".join([
-            f"      - '{host}:{container}' # {comment}"
-            for host, container, comment in ports
+            f"      - '{mapping}' # {comment}"
+            for mapping, comment in ports
         ])
         
         pattern = r'(network-service:.*?ports:.*?)(.*?)(command:)'
@@ -59,6 +60,14 @@ class DockerComposeManager:
             
         return content
         
+    def _backup_original_file(self) -> None:
+        """将原始的 docker-compose.yml 备份为 docker-compose.yml.example"""
+        compose_path = os.path.join(self.install_dir, 'docker-compose.yml')
+        example_path = os.path.join(self.install_dir, 'docker-compose.yml.example')
+        
+        if os.path.exists(compose_path) and not os.path.exists(example_path):
+            shutil.copy2(compose_path, example_path)
+        
     def update_docker_compose(self, port_config: Dict[str, int]) -> None:
         """更新 docker-compose.yml 文件中的端口映射
         
@@ -68,6 +77,9 @@ class DockerComposeManager:
         compose_path = os.path.join(self.install_dir, 'docker-compose.yml')
         if not os.path.exists(compose_path):
             return
+            
+        # 在修改之前先备份原始文件
+        self._backup_original_file()
             
         # 读取文件内容
         with open(compose_path, 'r', encoding='utf-8') as f:

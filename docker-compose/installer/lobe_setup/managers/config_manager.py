@@ -1,5 +1,6 @@
 import json
 import os
+import secrets
 from pathlib import Path
 from typing import Dict, Any, Optional
 
@@ -42,3 +43,43 @@ class ConfigManager:
         """设置配置值"""
         self.config[key] = value
         self.save()
+
+    def _generate_secret(self, length: int = 32) -> str:
+        """生成指定长度的随机密钥
+        
+        Args:
+            length: 密钥长度，默认为 32 个字符
+            
+        Returns:
+            str: 生成的密钥
+        """
+        return secrets.token_hex(length // 2)
+
+    def get_generated_value(self, key: str) -> str:
+        """获取或生成配置值。如果值不存在，则生成新的值并保存。
+        
+        Args:
+            key: 配置键名
+            
+        Returns:
+            str: 配置值
+        """
+        # 如果值已存在，直接返回
+        value = self.get(key)
+        if value:
+            return value
+            
+        # 根据不同的键生成不同的值
+        if key == 'auth_casdoor_secret':
+            # Casdoor secret 需要 32 个字符
+            value = self._generate_secret(32)
+        elif key == 'minio_root_password':
+            # MinIO 密码使用 8 个字符
+            value = self._generate_secret(8)
+        else:
+            # 默认生成 16 个字符的密钥
+            value = self._generate_secret(16)
+            
+        # 保存生成的值
+        self.set(key, value)
+        return value

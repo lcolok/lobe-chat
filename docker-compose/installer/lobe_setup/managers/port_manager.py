@@ -1,5 +1,5 @@
 import socket
-from typing import List, Tuple, Optional, Set
+from typing import List, Tuple, Optional, Set, Dict
 import inquirer
 import psutil
 
@@ -85,7 +85,7 @@ class PortManager:
             questions = [
                 inquirer.Text(
                     'port',
-                    message=self.i18n.get('ask_port').format(
+                    message=self.i18n.get('ask_new_port').format(
                         service=service,
                         port=default_port
                     ),
@@ -109,43 +109,99 @@ class PortManager:
                 
             return port
         
-    def configure_ports(self) -> dict:
+    def _is_port_in_use(self, port: int) -> bool:
+        """检查端口是否被占用
+        
+        Args:
+            port: 要检查的端口号
+            
+        Returns:
+            bool: 如果端口被占用返回 True，否则返回 False
+        """
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            try:
+                s.bind(('localhost', port))
+                return False
+            except socket.error:
+                return True
+                
+    def _get_postgres_port(self) -> int:
+        """获取 PostgreSQL 的端口号
+        
+        Returns:
+            int: PostgreSQL 端口号
+        """
+        default_port = 5432
+        next_port = 5433
+        
+        if self._is_port_in_use(default_port):
+            print(self.i18n.get('postgres_port_conflict').format(port=default_port))
+            
+            while True:
+                questions = [
+                    inquirer.Text(
+                        'port',
+                        message=self.i18n.get('postgres_port_prompt').format(port=next_port),
+                        default=str(next_port),
+                        validate=lambda _, x: x.isdigit() and 1 <= int(x) <= 65535
+                    )
+                ]
+                
+                answers = inquirer.prompt(questions)
+                port = int(answers['port'])
+                
+                try:
+                    if self._is_port_in_use(port):
+                        print(self.i18n.get('port_in_use').format(port=port))
+                        continue
+                        
+                    return port
+                    
+                except ValueError:
+                    print(self.i18n.get('invalid_port'))
+                    
+        return default_port
+        
+    def configure_ports(self) -> Dict[str, int]:
         """配置所有服务的端口
         
         Returns:
-            dict: 服务端口配置字典
+            Dict[str, int]: 服务端口配置字典
         """
         port_config = {}
         self.used_ports.clear()  # 清空已使用端口列表
         
         for service, default_port in self.default_ports.items():
-            # 检查默认端口是否可用
-            if not self.is_port_available(default_port):
-                # 找到下一个可用端口
-                suggested_port = self.find_next_available_port(default_port)
-                print(self.i18n.get('port_conflict').format(
-                    service=service,
-                    port=default_port
-                ))
-                # 让用户选择端口
-                port = self.prompt_for_port(service, suggested_port)
+            if service == 'postgres':
+                port = self._get_postgres_port()
             else:
-                # 默认端口可用，询问用户是否要修改
-                questions = [
-                    inquirer.Confirm(
-                        'use_default',
-                        message=self.i18n.get('use_default_port').format(
-                            service=service,
-                            port=default_port
-                        ),
-                        default=True
-                    )
-                ]
-                
-                if inquirer.prompt(questions)['use_default']:
-                    port = default_port
+                # 检查默认端口是否可用
+                if not self.is_port_available(default_port):
+                    # 找到下一个可用端口
+                    suggested_port = self.find_next_available_port(default_port)
+                    print(self.i18n.get('ask_port_conflict').format(
+                        service=service,
+                        port=default_port
+                    ))
+                    # 让用户选择端口
+                    port = self.prompt_for_port(service, suggested_port)
                 else:
-                    port = self.prompt_for_port(service, default_port)
+                    # 默认端口可用，询问用户是否要修改
+                    questions = [
+                        inquirer.Confirm(
+                            'use_default',
+                            message=self.i18n.get('ask_port').format(
+                                service=service,
+                                port=default_port
+                            ),
+                            default=True
+                        )
+                    ]
+                    
+                    if inquirer.prompt(questions)['use_default']:
+                        port = default_port
+                    else:
+                        port = self.prompt_for_port(service, default_port)
             
             # 记录已分配的端口
             self.used_ports.add(port)

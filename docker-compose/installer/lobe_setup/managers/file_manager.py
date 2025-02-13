@@ -51,6 +51,9 @@ class FileManager:
         # 下载 docker-compose.yml
         self.download_file(f"{self.source_url}/docker-compose/local/docker-compose.yml", "docker-compose.yml")
         
+        # 下载 init_data.json
+        self.download_file(f"{self.source_url}/docker-compose/local/init_data.json", "init_data.json")
+        
         # 根据语言选择下载不同的 .env.example 文件
         env_example_file = ".env.zh-CN.example" if language == "zh_CN" else ".env.example"
         self.download_file(
