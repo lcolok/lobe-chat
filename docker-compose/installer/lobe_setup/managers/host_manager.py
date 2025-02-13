@@ -3,6 +3,7 @@ import socket
 import os
 import secrets
 import string
+import subprocess
 from typing import Dict, List, Tuple
 from .port_manager import PortManager
 from .file_managers import EnvManager, DockerComposeManager, InitDataManager
@@ -66,31 +67,57 @@ class HostManager:
         Returns:
             Dict[str, str]: 配置值字典
         """
-        # 生成或获取配置值
-        auth_casdoor_secret = self.config_manager.get_generated_value('auth_casdoor_secret')
-        minio_root_password = self.config_manager.get_generated_value('minio_root_password')
-        
-        # 生成 Casdoor 用户密码
-        try:
-            casdoor_password = self._generate_password()
-            print(f"Generated new user password")
-            # 更新 init_data.json 中的密码
-            self.init_data_manager.update_casdoor_password(casdoor_password)
-        except Exception as e:
-            print(f"Warning: Failed to generate user password: {e}")
-            casdoor_password = "123"  # 使用默认密码
-            
-        return {
-            'AUTH_CASDOOR_SECRET': auth_casdoor_secret,
-            'MINIO_ROOT_PASSWORD': minio_root_password,
-            'CASDOOR_PASSWORD': casdoor_password,  # 添加 Casdoor 密码到配置中
-            'LOBE_USERNAME': 'user',  # LobeChat 用户名
-            'LOBE_PASSWORD': casdoor_password,  # LobeChat 密码与 Casdoor 密码相同
-            'CASDOOR_ADMIN_USER': 'admin',  # Casdoor 管理员用户名
-            'CASDOOR_ADMIN_PASSWORD': casdoor_password,  # Casdoor 管理员密码
-            'MINIO_ROOT_USER': 'admin'  # Minio 用户名
+        # 使用 openssl 生成随机密码，与 shell 脚本保持一致
+        def generate_key(length: int) -> str:
+            try:
+                result = subprocess.run(
+                    ['openssl', 'rand', '-hex', str(length)],
+                    capture_output=True,
+                    text=True,
+                    check=True
+                )
+                return result.stdout.strip()[:length]
+            except subprocess.CalledProcessError:
+                return ''.join(secrets.choice(string.ascii_letters + string.digits) for _ in range(length))
+
+        # 生成密码
+        casdoor_secret = generate_key(32)
+        casdoor_password = generate_key(10)
+        minio_password = generate_key(8)
+
+        config_values = {
+            'AUTH_CASDOOR_SECRET': casdoor_secret,
+            'MINIO_ROOT_PASSWORD': minio_password,
+            'CASDOOR_PASSWORD': casdoor_password,
+            'LOBE_USERNAME': 'user',
+            'LOBE_PASSWORD': casdoor_password,  # 使用相同的密码
+            'CASDOOR_ADMIN_USER': 'admin',
+            'CASDOOR_ADMIN_PASSWORD': casdoor_password,  # 使用相同的密码
+            'MINIO_ROOT_USER': 'admin'
         }
+
+        # 更新 init_data.json 中的配置
+        try:
+            self.init_data_manager.update_casdoor_config(
+                password=casdoor_password,
+                client_secret=casdoor_secret,
+                host=self.get_host()  # 获取当前主机地址
+            )
+        except Exception as e:
+            print(f"Warning: Failed to update configuration in init_data.json: {e}")
+
+        return config_values
+
+    def get_host(self) -> str:
+        """获取当前主机地址
         
+        Returns:
+            str: 主机地址
+        """
+        # 这里需要根据实际情况返回正确的主机地址
+        # 可以从配置中获取或使用默认值
+        return 'localhost:3210'
+
     def configure_host(self) -> Tuple[str, Dict[str, int]]:
         """配置主机
         

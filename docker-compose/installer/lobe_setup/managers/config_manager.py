@@ -31,9 +31,26 @@ class ConfigManager:
         """保存配置到文件"""
         try:
             with open(self.project_config_file, 'w', encoding='utf-8') as f:
-                json.dump(self.config, f, ensure_ascii=False, indent=2)
+                json.dump(self.config, f, indent=2, ensure_ascii=False)
         except Exception as e:
-            print(f"Warning: Failed to save project config file: {e}")
+            print(f"Error saving project config file: {e}")
+
+    def save_preset_credentials(self, credentials: Dict[str, str]):
+        """保存预设的凭据信息
+        
+        Args:
+            credentials: 包含用户名和密码的字典
+        """
+        self.config['preset_credentials'] = credentials
+        self.save()
+
+    def get_preset_credentials(self) -> Dict[str, str]:
+        """获取预设的凭据信息
+        
+        Returns:
+            Dict[str, str]: 预设的凭据信息
+        """
+        return self.config.get('preset_credentials', {})
 
     def get(self, key: str, default: Any = None) -> Any:
         """获取配置值"""

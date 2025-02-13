@@ -149,45 +149,58 @@ class InitDataManager:
         self._save_init_data(data)
         print(f"Updated redirect URIs in init_data.json")
         
-    def update_casdoor_password(self, new_password: str) -> None:
-        """更新所有用户密码和 LDAP 密码
+    def update_casdoor_config(self, password: str, client_secret: str, host: str):
+        """更新 Casdoor 配置，包括密码、客户端密钥和回调 URL
+        
+        Args:
+            password: 新密码
+            client_secret: 新的客户端密钥
+            host: 新的主机地址
+        """
+        init_data_file = os.path.join(self.install_dir, 'init_data.json')
+        
+        try:
+            with open(init_data_file, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+            
+            # 1. 更新客户端密钥
+            if 'applications' in data:
+                for app in data['applications']:
+                    if app.get('clientSecret') == 'dbf205949d704de81b0b5b3603174e23fbecc354':
+                        app['clientSecret'] = client_secret
+            
+            # 2. 更新所有用户的密码（从 "123" 更新为新密码）
+            if 'users' in data:
+                for user in data['users']:
+                    if user.get('password') == '123':
+                        user['password'] = password
+            
+            # 3. 更新回调 URL
+            if 'applications' in data:
+                for app in data['applications']:
+                    if 'redirectUris' in app:
+                        app['redirectUris'] = [uri.replace('example.com', host) for uri in app['redirectUris']]
+            
+            # 保存更新后的数据
+            with open(init_data_file, 'w', encoding='utf-8') as f:
+                json.dump(data, f, indent=2, ensure_ascii=False)
+                
+        except Exception as e:
+            print(f"Error updating Casdoor configuration in init_data.json: {e}")
+            raise
+
+    def update_casdoor_password(self, new_password: str):
+        """更新 Casdoor 密码（保留此方法以保持向后兼容）
         
         Args:
             new_password: 新密码
         """
-        data = self._load_init_data()
-        
-        # 1. 更新所有用户密码
-        users = data.get('users', [])
-        updated_users = []
-        
-        for user in users:
-            # 更新所有普通用户的密码
-            if user.get('type') == 'normal-user':
-                user['password'] = new_password
-                updated_users.append(f"{user.get('owner')}/{user.get('name')}")
-                
-        if updated_users:
-            print(f"Updated passwords for users: {', '.join(updated_users)}")
-        else:
-            print("Warning: No users found to update in init_data.json")
-            
-        # 2. 更新 LDAP 密码
-        ldaps = data.get('ldaps', [])
-        ldap_found = False
-        
-        for ldap in ldaps:
-            if ldap.get('owner') == 'built-in' and ldap.get('id') == 'ldap-built-in':
-                ldap_found = True
-                ldap['password'] = new_password
-                print(f"Updated LDAP server password")
-                break
-                
-        if not ldap_found:
-            print("Warning: Could not find built-in LDAP server in init_data.json")
-            
-        self._save_init_data(data)
-        
+        self.update_casdoor_config(
+            password=new_password,
+            client_secret='dbf205949d704de81b0b5b3603174e23fbecc354',  # 保持原值
+            host='example.com'  # 保持原值
+        )
+
     def get_application_config(self, app_name: str) -> Optional[Dict]:
         """获取应用配置
         
