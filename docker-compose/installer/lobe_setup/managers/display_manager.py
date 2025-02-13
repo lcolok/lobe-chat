@@ -1,51 +1,63 @@
 from rich.console import Console
 from rich.panel import Panel
-from typing import List, Dict
+from typing import Dict, List, Tuple
 
 class DisplayManager:
     def __init__(self, i18n):
+        """初始化显示管理器
+        
+        Args:
+            i18n: 国际化实例
+        """
         self.i18n = i18n
         self.console = Console()
-
-    def display_config_report(self, configs: Dict[str, Dict[str, str]], host: str):
-        """显示配置报告"""
-        self.console.print(f"\n[bold cyan]{self.i18n.get('config_report_title')}[/bold cyan]")
         
-        # 显示基本配置
-        for service, config in configs.items():
-            self.console.print(f"\n[bold]{service}:[/bold]")
-            for key, value in config.items():
-                self.console.print(f"  - {key}: {value}")
-
-        # 如果是域名模式，显示反向代理配置
-        if "localhost" not in host:
-            self.console.print(f"\n[bold cyan]{self.i18n.get('tips_add_reverse_proxy')}[/bold cyan]")
-            base_host = host.replace("http://", "").replace("https://", "").replace(":3210", "")
-            proxy_configs = {
-                f"{base_host}:3210": "127.0.0.1:3210",
-                f"{base_host}:8000": "127.0.0.1:8000",
-                f"{base_host}:9000": "127.0.0.1:9000"
-            }
-            for domain, target in proxy_configs.items():
-                self.console.print(f"  {domain} -> {target}")
-
-        # 显示后续步骤
-        self.console.print(f"\n[bold green]{self.i18n.get('next_steps')}:[/bold green]")
-        self.console.print(self.i18n.get("tips_run_command"))
-        self.console.print("[bold]docker compose up -d[/bold]")
-        self.console.print(f"\n{self.i18n.get('tips_allow_ports')}")
-        self.console.print(f"\n{self.i18n.get('tips_show_documentation')}")
-
-    def display_setup_summary(self, install_dir: str, downloaded_files: List[str], secrets_regenerated: bool):
-        """显示设置摘要"""
-        self.console.print(Panel.fit(
-            "\n".join([
-                f"{self.i18n.get('install_dir')}: {install_dir}",
-                f"{self.i18n.get('host_config')}:",
-                f"{self.i18n.get('files_downloaded')}:",
-                *[f"  • {file}" for file in downloaded_files],
-                "✓ " + self.i18n.get("secrets_regenerated") if secrets_regenerated else ""
-            ]),
-            title=self.i18n.get("setup_summary"),
-            border_style="blue"
-        ))
+    def display_config_report(self, configs: Dict[str, str], host_config: Tuple[str, Dict[str, int]]) -> None:
+        """显示配置报告
+        
+        Args:
+            configs: 配置字典，包含各种服务的用户名和密码
+            host_config: 主机配置元组 (host, port_config)，包含主机名和端口配置
+        """
+        self.console.print("\n" + self.i18n.get('config_report_title') + "\n")
+        
+        host, port_config = host_config
+        
+        # LobeChat 配置
+        self.console.print("LobeChat:")
+        self.console.print(f"  - URL: {host}:{port_config.get('lobe', 3210)}")
+        self.console.print(f"  - Username: {configs.get('LOBE_USERNAME', 'user')}")
+        self.console.print(f"  - Password: {configs.get('LOBE_PASSWORD', '')}")
+        
+        # Casdoor 配置
+        self.console.print("\nCasdoor:")
+        self.console.print(f"  - URL: {host}:{port_config.get('casdoor', 7001)}")
+        self.console.print(f"  - Username: {configs.get('CASDOOR_ADMIN_USER', 'admin')}")
+        self.console.print(f"  - Password: {configs.get('CASDOOR_ADMIN_PASSWORD', '')}")
+        
+        # Minio 配置
+        self.console.print("\nMinio:")
+        self.console.print(f"  - URL: {host}:{port_config.get('minio', 9000)}")
+        self.console.print(f"  - Username: {configs.get('MINIO_ROOT_USER', 'admin')}")
+        self.console.print(f"  - Password: {configs.get('MINIO_ROOT_PASSWORD', '')}")
+        
+        # 显示下一步操作
+        self.console.print("\n" + self.i18n.get('next_steps'))
+        
+    def display_setup_summary(self, install_dir: str, downloaded_files: List[str], secrets_regenerated: bool) -> None:
+        """显示安装摘要
+        
+        Args:
+            install_dir: 安装目录
+            downloaded_files: 已下载的文件列表
+            secrets_regenerated: 是否重新生成了密钥
+        """
+        summary = f"""
+install_dir: {install_dir}
+已下载文件：:
+  {chr(8226)} """ + f"\n  {chr(8226)} ".join(downloaded_files)
+        
+        if secrets_regenerated:
+            summary += "\n✓ 已重新生成安全密钥。"
+            
+        self.console.print(Panel(summary, title="setup_summary"))

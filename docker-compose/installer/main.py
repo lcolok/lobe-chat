@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-from lobe_setup.setup import LobeSetup
+from lobe_setup.installer import LobeSetup
 
 def main():
     setup = LobeSetup()
