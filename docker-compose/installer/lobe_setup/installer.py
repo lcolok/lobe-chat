@@ -113,11 +113,12 @@ class LobeSetup:
                 traceback.print_exc()
                 return
             
-            # 重新生成密钥
+            # 从配置文件中读取凭据信息
             try:
-                configs = self.secret_manager.regenerate_secrets(host_config[0])  # 传入 host
+                config = self.host_manager.config_manager.load_config()
+                configs = config.get('credentials', {})
             except Exception as e:
-                self.console.print(f"[red]Error generating secrets: {str(e)}[/red]")
+                self.console.print(f"[red]Error loading credentials: {str(e)}[/red]")
                 traceback.print_exc()
                 return
             
@@ -127,7 +128,7 @@ class LobeSetup:
                 self.display_manager.display_setup_summary(
                     self.install_dir,
                     self.file_manager.get_downloaded_files(),
-                    self.secret_manager.is_secrets_regenerated()
+                    False  # 不再重新生成密钥，所以这里始终为 False
                 )
             except Exception as e:
                 self.console.print(f"[red]Error displaying configuration: {str(e)}[/red]")

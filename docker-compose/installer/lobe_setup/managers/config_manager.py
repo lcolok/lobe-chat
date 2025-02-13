@@ -101,30 +101,65 @@ class ConfigManager:
         self.set(key, value)
         return value
 
-    def save_config(self, config: Dict[str, Any]):
-        """保存配置到文件
+    def _deep_merge(self, dict1: Dict, dict2: Dict) -> Dict:
+        """递归合并两个字典
         
         Args:
-            config: 配置字典
+            dict1: 基础字典
+            dict2: 要合并的字典（优先级更高）
+            
+        Returns:
+            Dict: 合并后的字典
+        """
+        merged = dict1.copy()
+        
+        for key, value in dict2.items():
+            if (
+                key in merged and 
+                isinstance(merged[key], dict) and 
+                isinstance(value, dict)
+            ):
+                merged[key] = self._deep_merge(merged[key], value)
+            else:
+                merged[key] = value
+                
+        return merged
+
+    def save_config(self, config: Dict[str, Any]):
+        """保存配置到文件，使用递归合并保持现有配置
+        
+        Args:
+            config: 要保存的新配置
         """
         config_dir = os.path.join(self.install_dir, '.lobe-setup')
         os.makedirs(config_dir, exist_ok=True)
         
         config_file = os.path.join(config_dir, 'config.json')
         try:
-            # 如果文件已存在，先读取现有配置
+            # 读取现有配置
+            existing_config = {}
             if os.path.exists(config_file):
                 with open(config_file, 'r', encoding='utf-8') as f:
                     existing_config = json.load(f)
-                # 更新现有配置
-                existing_config.update(config)
-                config = existing_config
+            
+            # 递归合并配置
+            merged_config = self._deep_merge(existing_config, config)
                 
+            # 保存合并后的配置
             with open(config_file, 'w', encoding='utf-8') as f:
-                json.dump(config, f, indent=2, ensure_ascii=False)
+                json.dump(merged_config, f, indent=2, ensure_ascii=False)
         except Exception as e:
             print(f"Error saving config to {config_file}: {e}")
             raise
+
+    def save_credentials(self, credentials: Dict[str, str]):
+        """保存凭据信息，确保不覆盖其他配置
+        
+        Args:
+            credentials: 凭据字典，包含各种密码和密钥
+        """
+        # 只更新 credentials 部分
+        self.save_config({'credentials': credentials})
 
     def load_config(self) -> Dict[str, Any]:
         """从文件加载配置
@@ -140,14 +175,6 @@ class ConfigManager:
         except Exception as e:
             print(f"Error loading config from {config_file}: {e}")
         return {}
-
-    def save_credentials(self, credentials: Dict[str, str]):
-        """保存凭据信息
-        
-        Args:
-            credentials: 凭据字典，包含各种密码和密钥
-        """
-        self.save_config({'credentials': credentials})
 
     def load_credentials(self) -> Dict[str, str]:
         """加载凭据信息

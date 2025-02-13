@@ -25,6 +25,52 @@ class HostManager:
         self.docker_compose_manager = DockerComposeManager(config_manager.install_dir)
         self.init_data_manager = InitDataManager(config_manager.install_dir)
         
+        # 确保凭据已经生成并保存
+        self._ensure_credentials()
+
+    def _ensure_credentials(self):
+        """确保凭据已经生成并保存"""
+        credentials = self.config_manager.load_credentials()
+        if not credentials:
+            # 生成新的凭据
+            credentials = self._generate_credentials()
+            # 保存凭据
+            self.config_manager.save_credentials(credentials)
+
+    def _generate_credentials(self) -> Dict[str, str]:
+        """生成新的凭据
+        
+        Returns:
+            Dict[str, str]: 生成的凭据
+        """
+        def generate_key(length: int) -> str:
+            try:
+                result = subprocess.run(
+                    ['openssl', 'rand', '-hex', str(length)],
+                    capture_output=True,
+                    text=True,
+                    check=True
+                )
+                return result.stdout.strip()[:length]
+            except subprocess.CalledProcessError:
+                return ''.join(secrets.choice(string.ascii_letters + string.digits) for _ in range(length))
+
+        # 生成密码
+        casdoor_secret = generate_key(32)
+        casdoor_password = generate_key(10)
+        minio_password = generate_key(8)
+
+        return {
+            'AUTH_CASDOOR_SECRET': casdoor_secret,
+            'MINIO_ROOT_PASSWORD': minio_password,
+            'CASDOOR_PASSWORD': casdoor_password,  # 使用相同的密码
+            'LOBE_USERNAME': 'user',
+            'LOBE_PASSWORD': casdoor_password,  # 使用相同的密码
+            'CASDOOR_ADMIN_USER': 'admin',
+            'CASDOOR_ADMIN_PASSWORD': casdoor_password,  # 使用相同的密码
+            'MINIO_ROOT_USER': 'admin'
+        }
+
     def _generate_password(self, length: int = 10) -> str:
         """生成随机密码
         
@@ -67,49 +113,15 @@ class HostManager:
         Returns:
             Dict[str, str]: 配置值字典
         """
-        # 首先尝试从配置文件加载凭据
+        # 获取已保存的凭据
         credentials = self.config_manager.load_credentials()
-        if credentials:
-            return credentials
-
-        # 如果没有保存的凭据，生成新的
-        def generate_key(length: int) -> str:
-            try:
-                result = subprocess.run(
-                    ['openssl', 'rand', '-hex', str(length)],
-                    capture_output=True,
-                    text=True,
-                    check=True
-                )
-                return result.stdout.strip()[:length]
-            except subprocess.CalledProcessError:
-                return ''.join(secrets.choice(string.ascii_letters + string.digits) for _ in range(length))
-
-        # 生成密码
-        casdoor_secret = generate_key(32)
-        casdoor_password = generate_key(10)
-        minio_password = generate_key(8)
-
-        credentials = {
-            'AUTH_CASDOOR_SECRET': casdoor_secret,
-            'MINIO_ROOT_PASSWORD': minio_password,
-            'CASDOOR_PASSWORD': casdoor_password,
-            'LOBE_USERNAME': 'user',
-            'LOBE_PASSWORD': casdoor_password,  # 使用相同的密码
-            'CASDOOR_ADMIN_USER': 'admin',
-            'CASDOOR_ADMIN_PASSWORD': casdoor_password,  # 使用相同的密码
-            'MINIO_ROOT_USER': 'admin'
-        }
-
-        # 保存凭据到配置文件
-        self.config_manager.save_credentials(credentials)
-
+        
         # 更新 init_data.json 中的配置
         try:
             self.init_data_manager.update_casdoor_config(
-                password=casdoor_password,
-                client_secret=casdoor_secret,
-                host=self.get_host()  # 获取当前主机地址
+                password=credentials['CASDOOR_PASSWORD'],
+                client_secret=credentials['AUTH_CASDOOR_SECRET'],
+                host=self.get_host()
             )
         except Exception as e:
             print(f"Warning: Failed to update configuration in init_data.json: {e}")
@@ -134,35 +146,28 @@ class HostManager:
         Returns:
             Tuple[str, Dict[str, int]]: 主机名和端口配置
         """
-        # 选择部署模式
-        questions = [
-            inquirer.List('mode',
-                         message=self.i18n.get('ask_mode'),
-                         choices=[
-                             ('本地模式（localhost）', 'local'),
-                             ('端口模式（自定义端口）', 'port'),
-                             ('域名模式（自定义域名）', 'domain')
-                         ])
-        ]
+        # 获取现有配置
+        existing_config = self.config_manager.load_config()
         
-        mode = inquirer.prompt(questions)['mode']
+        # 1. 获取部署模式
+        mode = self._get_mode()
         
-        # 1. 获取主机配置（对于端口模式和域名模式，会询问用户）
+        # 2. 获取主机配置
         host = self._get_host_config(mode)
         
-        # 2. 获取端口配置
+        # 3. 获取端口配置
         if mode == 'port':
-            port_config = self.port_manager.configure_ports()
+            port_config = self._get_port_config()
         else:
             port_config = self.port_manager.get_port_config()
         
-        # 3. 获取配置值
+        # 4. 获取配置值（凭据等）
         config_values = self._get_config_values()
         
-        # 4. 更新 docker-compose.yml
+        # 5. 更新 docker-compose.yml
         self.docker_compose_manager.update_docker_compose(port_config)
         
-        # 5. 更新 .env 文件，使用实际的主机名和端口
+        # 6. 更新 .env 文件，使用实际的主机名和端口
         env_updates = {
             'APP_URL': f"http://{host}:{port_config['lobe']}",
             'AUTH_URL': f"http://{host}:{port_config['lobe']}/api/auth",
@@ -174,7 +179,7 @@ class HostManager:
         config_values.update(env_updates)
         self.env_manager.update_env_file(port_config, host, config_values)
         
-        # 6. 更新 init_data.json 中的重定向 URI
+        # 7. 更新 init_data.json 中的重定向 URI
         if mode == 'local':
             # 本地模式不需要更新重定向 URI
             pass
@@ -191,20 +196,84 @@ class HostManager:
                 'host': f"{host}:{port_config['lobe']}"
             }])
         
-        # 保存配置
-        self.config_manager.set('host', host)
-        self.config_manager.set('mode', mode)
+        # 8. 保存配置（使用增量更新而不是覆盖）
+        new_config = {
+            'host': host,
+            'mode': mode,
+            'ports': port_config
+        }
+        self.config_manager.save_config(new_config)
         
         return host, port_config
 
+    def _get_port_config(self) -> Dict[str, int]:
+        """获取端口配置，保持现有端口配置
+        
+        Returns:
+            Dict[str, int]: 端口配置
+        """
+        # 获取现有端口配置
+        existing_config = self.config_manager.load_config()
+        existing_ports = existing_config.get('ports', {})
+        
+        # 默认端口配置
+        default_ports = {
+            'lobe': 3210,
+            'casdoor': 8000,
+            'minio': 9000,
+            'minio_console': 9001,
+            'postgres': 5432
+        }
+        
+        # 使用现有配置或默认值
+        port_config = default_ports.copy()
+        port_config.update(existing_ports)
+        
+        # 询问用户确认或修改端口
+        questions = []
+        for service, default_port in port_config.items():
+            questions.append(
+                inquirer.Text(
+                    service,
+                    message=self.i18n.get('ask_port').format(service, default_port),
+                    default=str(default_port),
+                    validate=lambda _, x: x.isdigit() and 1 <= int(x) <= 65535
+                )
+            )
+        
+        answers = inquirer.prompt(questions)
+        return {k: int(v) for k, v in answers.items()}
+
+    def _get_mode(self) -> str:
+        """获取部署模式
+        
+        Returns:
+            str: 部署模式
+        """
+        # 选择部署模式
+        questions = [
+            inquirer.List('mode',
+                         message=self.i18n.get('ask_mode'),
+                         choices=[
+                             ('本地模式（localhost）', 'local'),
+                             ('端口模式（自定义端口）', 'port'),
+                             ('域名模式（自定义域名）', 'domain')
+                         ])
+        ]
+        
+        mode = inquirer.prompt(questions)['mode']
+        
+        return mode
+
     def print_config_report(self):
         """打印配置报告"""
-        credentials = self.config_manager.load_credentials()
         config = self.config_manager.load_config()
+        credentials = config.get('credentials', {})
         
         print("\n=== 配置报告 ===")
         print(f"主机: {config.get('host', 'localhost')}")
         print(f"模式: {config.get('mode', 'port')}")
+        
         print("\n端口配置:")
         ports = config.get('ports', {})
         for service, port in ports.items():

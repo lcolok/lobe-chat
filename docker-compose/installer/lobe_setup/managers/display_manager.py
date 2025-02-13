@@ -31,15 +31,20 @@ class DisplayManager:
         
         # Casdoor 配置
         self.console.print("\nCasdoor:")
-        self.console.print(f"  - URL: {host}:{port_config.get('casdoor', 7001)}")
+        self.console.print(f"  - URL: {host}:{port_config.get('casdoor', 8000)}")
         self.console.print(f"  - Username: {configs.get('CASDOOR_ADMIN_USER', 'admin')}")
         self.console.print(f"  - Password: {configs.get('CASDOOR_ADMIN_PASSWORD', '')}")
         
         # Minio 配置
         self.console.print("\nMinio:")
         self.console.print(f"  - URL: {host}:{port_config.get('minio', 9000)}")
+        self.console.print(f"  - Console URL: {host}:{port_config.get('minio_console', 9001)}")
         self.console.print(f"  - Username: {configs.get('MINIO_ROOT_USER', 'admin')}")
         self.console.print(f"  - Password: {configs.get('MINIO_ROOT_PASSWORD', '')}")
+        
+        # PostgreSQL 配置
+        self.console.print("\nPostgreSQL:")
+        self.console.print(f"  - Port: {port_config.get('postgres', 5432)}")
         
         # 显示下一步操作
         self.console.print("\n" + self.i18n.get('next_steps'))
