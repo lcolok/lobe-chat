@@ -174,8 +174,15 @@ class InitDataManager:
                 for user in data['users']:
                     if user.get('password') == '123':
                         user['password'] = password
+
+            # 3. 更新 LDAP 配置
+            if 'ldaps' in data:
+                for ldap in data['ldaps']:
+                    if ldap.get('id') == 'ldap-built-in' and ldap.get('owner') == 'built-in':
+                        ldap['password'] = password
+                        ldap['host'] = host.split(':')[0]  # 只使用主机名部分
             
-            # 3. 更新回调 URL
+            # 4. 更新回调 URL
             if 'applications' in data:
                 for app in data['applications']:
                     if 'redirectUris' in app:

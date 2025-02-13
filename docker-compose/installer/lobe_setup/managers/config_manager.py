@@ -100,3 +100,60 @@ class ConfigManager:
         # 保存生成的值
         self.set(key, value)
         return value
+
+    def save_config(self, config: Dict[str, Any]):
+        """保存配置到文件
+        
+        Args:
+            config: 配置字典
+        """
+        config_dir = os.path.join(self.install_dir, '.lobe-setup')
+        os.makedirs(config_dir, exist_ok=True)
+        
+        config_file = os.path.join(config_dir, 'config.json')
+        try:
+            # 如果文件已存在，先读取现有配置
+            if os.path.exists(config_file):
+                with open(config_file, 'r', encoding='utf-8') as f:
+                    existing_config = json.load(f)
+                # 更新现有配置
+                existing_config.update(config)
+                config = existing_config
+                
+            with open(config_file, 'w', encoding='utf-8') as f:
+                json.dump(config, f, indent=2, ensure_ascii=False)
+        except Exception as e:
+            print(f"Error saving config to {config_file}: {e}")
+            raise
+
+    def load_config(self) -> Dict[str, Any]:
+        """从文件加载配置
+        
+        Returns:
+            Dict[str, Any]: 配置字典
+        """
+        config_file = os.path.join(self.install_dir, '.lobe-setup', 'config.json')
+        try:
+            if os.path.exists(config_file):
+                with open(config_file, 'r', encoding='utf-8') as f:
+                    return json.load(f)
+        except Exception as e:
+            print(f"Error loading config from {config_file}: {e}")
+        return {}
+
+    def save_credentials(self, credentials: Dict[str, str]):
+        """保存凭据信息
+        
+        Args:
+            credentials: 凭据字典，包含各种密码和密钥
+        """
+        self.save_config({'credentials': credentials})
+
+    def load_credentials(self) -> Dict[str, str]:
+        """加载凭据信息
+        
+        Returns:
+            Dict[str, str]: 凭据字典
+        """
+        config = self.load_config()
+        return config.get('credentials', {})

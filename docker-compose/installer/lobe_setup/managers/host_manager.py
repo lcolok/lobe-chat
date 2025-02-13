@@ -67,7 +67,12 @@ class HostManager:
         Returns:
             Dict[str, str]: 配置值字典
         """
-        # 使用 openssl 生成随机密码，与 shell 脚本保持一致
+        # 首先尝试从配置文件加载凭据
+        credentials = self.config_manager.load_credentials()
+        if credentials:
+            return credentials
+
+        # 如果没有保存的凭据，生成新的
         def generate_key(length: int) -> str:
             try:
                 result = subprocess.run(
@@ -85,7 +90,7 @@ class HostManager:
         casdoor_password = generate_key(10)
         minio_password = generate_key(8)
 
-        config_values = {
+        credentials = {
             'AUTH_CASDOOR_SECRET': casdoor_secret,
             'MINIO_ROOT_PASSWORD': minio_password,
             'CASDOOR_PASSWORD': casdoor_password,
@@ -95,6 +100,9 @@ class HostManager:
             'CASDOOR_ADMIN_PASSWORD': casdoor_password,  # 使用相同的密码
             'MINIO_ROOT_USER': 'admin'
         }
+
+        # 保存凭据到配置文件
+        self.config_manager.save_credentials(credentials)
 
         # 更新 init_data.json 中的配置
         try:
@@ -106,7 +114,7 @@ class HostManager:
         except Exception as e:
             print(f"Warning: Failed to update configuration in init_data.json: {e}")
 
-        return config_values
+        return credentials
 
     def get_host(self) -> str:
         """获取当前主机地址
@@ -114,9 +122,11 @@ class HostManager:
         Returns:
             str: 主机地址
         """
-        # 这里需要根据实际情况返回正确的主机地址
-        # 可以从配置中获取或使用默认值
-        return 'localhost:3210'
+        config = self.config_manager.load_config()
+        host = config.get('host')
+        if not host:
+            host = 'localhost:3210'  # 默认值
+        return host
 
     def configure_host(self) -> Tuple[str, Dict[str, int]]:
         """配置主机
@@ -186,3 +196,24 @@ class HostManager:
         self.config_manager.set('mode', mode)
         
         return host, port_config
+
+    def print_config_report(self):
+        """打印配置报告"""
+        credentials = self.config_manager.load_credentials()
+        config = self.config_manager.load_config()
+        
+        print("\n=== 配置报告 ===")
+        print(f"主机: {config.get('host', 'localhost')}")
+        print(f"模式: {config.get('mode', 'port')}")
+        print("\n端口配置:")
+        ports = config.get('ports', {})
+        for service, port in ports.items():
+            print(f"  {service}: {port}")
+        
+        print("\n凭据信息:")
+        print(f"  Lobe Chat 用户名: {credentials.get('LOBE_USERNAME', 'user')}")
+        print(f"  Lobe Chat 密码: {credentials.get('LOBE_PASSWORD', '')}")
+        print(f"  Casdoor 管理员用户名: {credentials.get('CASDOOR_ADMIN_USER', 'admin')}")
+        print(f"  Casdoor 管理员密码: {credentials.get('CASDOOR_ADMIN_PASSWORD', '')}")
+        print(f"  MinIO 用户名: {credentials.get('MINIO_ROOT_USER', 'admin')}")
+        print(f"  MinIO 密码: {credentials.get('MINIO_ROOT_PASSWORD', '')}")
