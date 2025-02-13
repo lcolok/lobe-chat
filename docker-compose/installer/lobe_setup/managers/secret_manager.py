@@ -26,7 +26,7 @@ class SecretManager:
             alphabet = string.ascii_letters + string.digits
             return ''.join(secrets.choice(alphabet) for _ in range(length))
 
-    def regenerate_secrets(self, host: str) -> Dict[str, Dict[str, str]]:
+    def regenerate_secrets(self, host: str) -> Dict[str, str]:
         """重新生成密钥"""
         questions = [
             inquirer.Confirm('regenerate',
@@ -46,28 +46,20 @@ class SecretManager:
         casdoor_password = self.generate_random_string(10)
         minio_password = self.generate_random_string(8)
 
-        # 保存配置
+        # 保存配置 - 使用扁平的字典结构
         self.configs = {
-            "LobeChat": {
-                "URL": f"{host}",
-                "Username": "user",
-                "Password": auth_secret[:10]
-            },
-            "Casdoor": {
-                "URL": f"{host.replace('3210', '8000')}",
-                "Username": "admin",
-                "Password": auth_secret[:10]
-            },
-            "Minio": {
-                "URL": f"{host.replace('3210', '9000')}",
-                "Username": "admin",
-                "Password": minio_password
-            }
+            'AUTH_CASDOOR_SECRET': auth_secret,
+            'MINIO_ROOT_PASSWORD': minio_password,
+            'LOBE_USERNAME': 'user',
+            'LOBE_PASSWORD': casdoor_password,
+            'CASDOOR_ADMIN_USER': 'admin',
+            'CASDOOR_ADMIN_PASSWORD': casdoor_password,
+            'MINIO_ROOT_USER': 'admin'
         }
 
         return self.configs
 
-    def get_configs(self) -> Dict[str, Dict[str, str]]:
+    def get_configs(self) -> Dict[str, str]:
         """获取配置"""
         return self.configs
 

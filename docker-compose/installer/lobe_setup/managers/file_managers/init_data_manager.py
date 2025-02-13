@@ -124,67 +124,30 @@ class InitDataManager:
         """更新应用的重定向 URI
         
         Args:
-            app_name: 应用名称
-            configs: 配置列表，每个配置包含 host 和 port，例如：
-                    [
-                        {'host': 'localhost', 'port': '3210'},
-                        {'host': 'example.com', 'port': '3211'}
-                    ]
+            app_name: 应用名称（未使用）
+            configs: 配置列表，每个配置包含：
+                    - original: 要替换的原始值（如 'example.com' 或 'localhost:3210'）
+                    - host: 新的主机值
         """
         data = self._load_init_data()
         
-        # 确保 applications 列表存在
-        if 'applications' not in data:
-            data['applications'] = []
+        # 读取整个文件内容作为字符串
+        content = json.dumps(data, ensure_ascii=False, indent=2)
+        
+        # 对每个配置进行替换
+        for config in configs:
+            original = config['original']
+            host = config['host']
             
-        # 查找应用
-        app_found = False
-        for app in data.get('applications', []):
-            if app.get('name') == app_name:
-                app_found = True
-                
-                # 创建新的重定向 URI 列表
-                redirect_uris = set()
-                
-                # 添加新的重定向 URI
-                for config in configs:
-                    host = config['host']
-                    port = config['port']
-                    
-                    # 构建 HTTP URL
-                    http_url = self._normalize_url(f"http://{host}:{port}/api/auth/callback/casdoor")
-                    redirect_uris.add(http_url)
-                    
-                    # 如果主机名不是 localhost，也添加 HTTPS URL
-                    if host != 'localhost':
-                        https_url = self._normalize_url(f"https://{host}:{port}/api/auth/callback/casdoor")
-                        redirect_uris.add(https_url)
-                
-                # 完全替换应用的重定向 URI
-                app['redirectUris'] = sorted(list(redirect_uris))
-                print(f"Updated redirect URIs for {app_name}: {app['redirectUris']}")
-                break
-                
-        # 如果没有找到应用，创建一个新的
-        if not app_found:
-            redirect_uris = set()
-            for config in configs:
-                host = config['host']
-                port = config['port']
-                http_url = self._normalize_url(f"http://{host}:{port}/api/auth/callback/casdoor")
-                redirect_uris.add(http_url)
-                if host != 'localhost':
-                    https_url = self._normalize_url(f"https://{host}:{port}/api/auth/callback/casdoor")
-                    redirect_uris.add(https_url)
-                    
-            new_app = {
-                'name': app_name,
-                'redirectUris': sorted(list(redirect_uris))
-            }
-            data['applications'].append(new_app)
-            print(f"Created new application {app_name} with redirect URIs: {new_app['redirectUris']}")
-                
+            # 在整个文件中替换所有匹配项
+            content = content.replace(original, host)
+            
+        # 将更新后的内容解析回 JSON
+        data = json.loads(content)
+        
+        # 保存更新后的内容
         self._save_init_data(data)
+        print(f"Updated redirect URIs in init_data.json")
         
     def update_casdoor_password(self, new_password: str) -> None:
         """更新所有用户密码和 LDAP 密码

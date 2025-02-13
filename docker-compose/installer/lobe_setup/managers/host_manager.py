@@ -70,7 +70,7 @@ class HostManager:
         auth_casdoor_secret = self.config_manager.get_generated_value('auth_casdoor_secret')
         minio_root_password = self.config_manager.get_generated_value('minio_root_password')
         
-        # 生成 Casdoor 管理员密码
+        # 生成 Casdoor 用户密码
         try:
             casdoor_password = self._generate_password()
             print(f"Generated new user password")
@@ -83,7 +83,12 @@ class HostManager:
         return {
             'AUTH_CASDOOR_SECRET': auth_casdoor_secret,
             'MINIO_ROOT_PASSWORD': minio_root_password,
-            'CASDOOR_PASSWORD': casdoor_password  # 添加 Casdoor 密码到配置中
+            'CASDOOR_PASSWORD': casdoor_password,  # 添加 Casdoor 密码到配置中
+            'LOBE_USERNAME': 'user',  # LobeChat 用户名
+            'LOBE_PASSWORD': casdoor_password,  # LobeChat 密码与 Casdoor 密码相同
+            'CASDOOR_ADMIN_USER': 'admin',  # Casdoor 管理员用户名
+            'CASDOOR_ADMIN_PASSWORD': casdoor_password,  # Casdoor 管理员密码
+            'MINIO_ROOT_USER': 'admin'  # Minio 用户名
         }
         
     def configure_host(self) -> Tuple[str, Dict[str, int]]:
@@ -133,22 +138,21 @@ class HostManager:
         self.env_manager.update_env_file(port_config, host, config_values)
         
         # 6. 更新 init_data.json 中的重定向 URI
-        redirect_configs = []
-        
-        # 添加主域名配置
-        redirect_configs.append({
-            'host': host,
-            'port': str(port_config['lobe'])
-        })
-        
-        # 如果是端口模式，也添加 localhost 配置用于本地开发
-        if mode == 'port':
-            redirect_configs.append({
-                'host': 'localhost',
-                'port': str(port_config['lobe'])
-            })
-            
-        self.init_data_manager.update_redirect_uris('lobechat', redirect_configs)
+        if mode == 'local':
+            # 本地模式不需要更新重定向 URI
+            pass
+        elif mode == 'domain':
+            # 域名模式：替换 example.com 为实际域名
+            self.init_data_manager.update_redirect_uris('lobechat', [{
+                'original': 'example.com',
+                'host': host
+            }])
+        else:  # port mode
+            # 端口模式：替换 localhost:3210 为实际主机和端口
+            self.init_data_manager.update_redirect_uris('lobechat', [{
+                'original': 'localhost:3210',
+                'host': f"{host}:{port_config['lobe']}"
+            }])
         
         # 保存配置
         self.config_manager.set('host', host)
