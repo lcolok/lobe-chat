@@ -34,6 +34,13 @@ MESSAGES = {
         "secrets_regenerated": "New AUTH_SECRET Generated",
         "config_report": "Configuration Report",
         "config_report_title": "Security Configuration Generated:",
+        "proxy_config": "Reverse Proxy Configuration",
+        "next_steps": "Next Steps",
+        "run_command": "Run the following command to start services:",
+        "tips_add_reverse_proxy": "Please add the following reverse proxy configurations:",
+        "tips_run_command": "Run the following command to start the service:",
+        "tips_allow_ports": "Make sure the required ports (3210, 8000, 9000) are open in your firewall.",
+        "tips_show_documentation": "For more information, please visit: https://github.com/lobehub/lobe-chat"
     },
     "zh_CN": {
         "downloading": "正在下载所需文件",
@@ -68,6 +75,13 @@ MESSAGES = {
         "secrets_regenerated": "已生成新的 AUTH_SECRET",
         "config_report": "配置报告",
         "config_report_title": "安全密钥生成结果如下：",
+        "proxy_config": "反向代理配置",
+        "next_steps": "下一步",
+        "run_command": "运行以下命令启动服务：",
+        "tips_add_reverse_proxy": "请添加以下反向代理配置：",
+        "tips_run_command": "运行以下命令启动服务：",
+        "tips_allow_ports": "请确保防火墙已开放所需端口（3210、8000、9000）。",
+        "tips_show_documentation": "更多信息请访问：https://github.com/lobehub/lobe-chat"
     }
 }
 
