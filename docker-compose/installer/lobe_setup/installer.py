@@ -70,7 +70,7 @@ class LobeSetup:
             if os.path.exists(self.install_dir):
                 questions = [
                     inquirer.Confirm('use_existing',
-                                   message=self.i18n.get("install_dir_exists"),
+                                   message=self.i18n.get("ask_dir_exists"),
                                    default=True)
                 ]
                 

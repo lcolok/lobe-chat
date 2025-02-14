@@ -4,8 +4,8 @@ import shutil
 import requests
 from typing import Dict, List, Optional, Set, Any
 from urllib.parse import urlparse
-from i18n import I18n
-from console import Console
+from lobe_setup.i18n import I18n
+from rich.console import Console
 
 class InitDataManager:
     """初始化数据管理器，用于管理 init_data.json 文件"""

@@ -7,6 +7,7 @@ import subprocess
 from typing import Dict, List, Tuple
 from .port_manager import PortManager
 from .file_managers import EnvManager, DockerComposeManager, InitDataManager
+from rich.console import Console
 
 class HostManager:
     def __init__(self, config_manager, i18n):
@@ -18,12 +19,13 @@ class HostManager:
         """
         self.config_manager = config_manager
         self.i18n = i18n
+        self.console = Console()
         self.port_manager = PortManager(i18n, config_manager)
         
         # 使用配置管理器提供的安装目录
         self.env_manager = EnvManager(config_manager.install_dir)
         self.docker_compose_manager = DockerComposeManager(config_manager.install_dir)
-        self.init_data_manager = InitDataManager(config_manager.install_dir)
+        self.init_data_manager = InitDataManager(config_manager.install_dir, i18n, self.console)
         
         # 确保凭据已经生成并保存
         self._ensure_credentials()
