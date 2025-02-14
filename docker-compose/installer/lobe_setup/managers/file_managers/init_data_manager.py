@@ -2,19 +2,25 @@ import json
 import os
 import shutil
 import requests
-from typing import Dict, List, Optional, Set
+from typing import Dict, List, Optional, Set, Any
 from urllib.parse import urlparse
+from i18n import I18n
+from console import Console
 
 class InitDataManager:
     """初始化数据管理器，用于管理 init_data.json 文件"""
     
-    def __init__(self, install_dir: str):
+    def __init__(self, install_dir: str, i18n: I18n, console: Console):
         """初始化管理器
         
         Args:
             install_dir: 安装目录
+            i18n: 国际化翻译对象
+            console: 控制台输出对象
         """
         self.install_dir = install_dir
+        self.i18n = i18n
+        self.console = console
         # 直接在安装目录根目录使用 init_data.json
         self.init_data_path = os.path.join(install_dir, 'init_data.json')
         # 从主分支获取初始配置
@@ -39,7 +45,7 @@ class InitDataManager:
             print(f"Error downloading init_data.json: {e}")
             return {}
             
-    def _load_init_data(self) -> Dict:
+    def _load_init_data(self) -> Dict[str, Any]:
         """加载 init_data.json 文件
         
         Returns:
@@ -61,10 +67,10 @@ class InitDataManager:
             with open(self.init_data_path, 'r', encoding='utf-8') as f:
                 return json.load(f)
         except Exception as e:
-            print(f"Error loading init_data.json: {e}")
-            return {}
+            self.console.print(f"[red]{self.i18n.get('error_loading_init_data').format(str(e))}[/red]")
+            raise
             
-    def _save_init_data(self, data: Dict) -> None:
+    def _save_init_data(self, data: Dict[str, Any]) -> None:
         """保存数据到 init_data.json 文件
         
         Args:
@@ -78,20 +84,21 @@ class InitDataManager:
             # 保存文件
             with open(self.init_data_path, 'w', encoding='utf-8') as f:
                 json.dump(data, f, indent=2, ensure_ascii=False)
-            print(f"Successfully saved init_data.json")
-            
-            # 删除 local 目录下的 init_data.json（如果存在）
-            local_init_data = os.path.join(self.install_dir, 'local', 'init_data.json')
-            if os.path.exists(local_init_data):
-                try:
-                    os.remove(local_init_data)
-                    print(f"Removed redundant init_data.json at {local_init_data}")
-                except Exception as e:
-                    print(f"Warning: Could not remove redundant init_data.json: {e}")
-                    
         except Exception as e:
-            print(f"Error saving init_data.json: {e}")
+            self.console.print(f"[red]{self.i18n.get('error_saving_init_data').format(str(e))}[/red]")
+            raise
             
+        print(f"Successfully saved init_data.json")
+        
+        # 删除 local 目录下的 init_data.json（如果存在）
+        local_init_data = os.path.join(self.install_dir, 'local', 'init_data.json')
+        if os.path.exists(local_init_data):
+            try:
+                os.remove(local_init_data)
+                print(f"Removed redundant init_data.json at {local_init_data}")
+            except Exception as e:
+                print(f"Warning: Could not remove redundant init_data.json: {e}")
+                
     def _normalize_url(self, url: str) -> str:
         """标准化 URL，移除末尾的斜杠
         
@@ -120,35 +127,32 @@ class InitDataManager:
                 
         self._save_init_data(data)
         
-    def update_redirect_uris(self, app_name: str, configs: List[Dict[str, str]]) -> None:
-        """更新应用的重定向 URI
+    def update_redirect_uris(self, host: str, port: int) -> None:
+        """更新 init_data.json 中的重定向 URI
         
         Args:
-            app_name: 应用名称（未使用）
-            configs: 配置列表，每个配置包含：
-                    - original: 要替换的原始值（如 'example.com' 或 'localhost:3210'）
-                    - host: 新的主机值
+            host: 主机地址
+            port: 端口号
         """
-        data = self._load_init_data()
-        
-        # 读取整个文件内容作为字符串
-        content = json.dumps(data, ensure_ascii=False, indent=2)
-        
-        # 对每个配置进行替换
-        for config in configs:
-            original = config['original']
-            host = config['host']
+        try:
+            data = self._load_init_data()
             
-            # 在整个文件中替换所有匹配项
-            content = content.replace(original, host)
-            
-        # 将更新后的内容解析回 JSON
-        data = json.loads(content)
-        
-        # 保存更新后的内容
-        self._save_init_data(data)
-        print(f"Updated redirect URIs in init_data.json")
-        
+            # 更新 Casdoor 配置
+            casdoor_config = data.get('casdoor', {})
+            if casdoor_config:
+                redirect_uris = [
+                    f"http://{host}:{port}/api/auth/callback/casdoor",
+                    "http://localhost:3210/api/auth/callback/casdoor"
+                ]
+                casdoor_config['redirectUris'] = redirect_uris
+                data['casdoor'] = casdoor_config
+                
+                self._save_init_data(data)
+                self.console.print(f"[green]{self.i18n.get('updated_redirect_uris')}[/green]")
+        except Exception as e:
+            self.console.print(f"[red]{self.i18n.get('error_updating_casdoor_config').format(str(e))}[/red]")
+            raise
+
     def update_casdoor_config(self, password: str, client_secret: str, host: str):
         """更新 Casdoor 配置，包括密码、客户端密钥和回调 URL
         
@@ -193,7 +197,7 @@ class InitDataManager:
                 json.dump(data, f, indent=2, ensure_ascii=False)
                 
         except Exception as e:
-            print(f"Error updating Casdoor configuration in init_data.json: {e}")
+            self.console.print(f"[red]{self.i18n.get('error_updating_casdoor_config').format(str(e))}[/red]")
             raise
 
     def update_casdoor_password(self, new_password: str):

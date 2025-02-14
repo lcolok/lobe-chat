@@ -20,10 +20,10 @@ class I18n:
                 'ask_regenerate_secrets': 'Regenerate security keys?',
                 'generating_secrets': 'Generating security keys...',
                 'secrets_generated': 'Security keys generated successfully.',
-                'install_dir_exists': 'Directory already exists, use it?',
-                'creating_dir': 'Creating directory: {dir}',
-                'setup_cancelled': '\nSetup cancelled.',
+                'downloading_files': 'Downloading required files...',
+                'download_complete': 'Files downloaded successfully.',
                 'setup_complete': 'Setup completed successfully!',
+                'setup_cancelled': 'Setup cancelled by user.',
                 'config_report_title': '=== Configuration Report ===',
                 'next_steps': '\nNext Steps:\n1. Start the services with: docker compose up -d\n2. Access LobeChat at the configured URL',
                 'invalid_port': 'Invalid port number. Please enter a number between 1 and 65535.',
@@ -39,6 +39,10 @@ class I18n:
                 'error_dir_not_empty': 'Directory is not empty and user chose not to use it',
                 'error_config_host': 'Error configuring host',
                 'error_config_env': 'Error configuring environment variables',
+                'error_loading_init_data': 'Error loading init_data.json: {}',
+                'error_saving_init_data': 'Error saving init_data.json: {}',
+                'updated_redirect_uris': 'Updated redirect URIs in init_data.json',
+                'error_updating_casdoor_config': 'Error updating Casdoor configuration in init_data.json: {}'
             },
             'zh_CN': {
                 'ask_install_dir': '安装目录（上次：{last_dir}）',
@@ -51,10 +55,10 @@ class I18n:
                 'ask_regenerate_secrets': '是否重新生成安全密钥？',
                 'generating_secrets': '正在生成安全密钥...',
                 'secrets_generated': '安全密钥生成成功。',
-                'install_dir_exists': '目录已存在，是否使用？',
-                'creating_dir': '正在创建目录：{dir}',
-                'setup_cancelled': '\n安装已取消。',
-                'setup_complete': '安装成功完成！',
+                'downloading_files': '正在下载所需文件...',
+                'download_complete': '文件下载成功。',
+                'setup_complete': '安装完成！',
+                'setup_cancelled': '用户取消安装。',
                 'config_report_title': '=== 配置报告 ===',
                 'next_steps': '\n后续步骤：\n1. 使用以下命令启动服务：docker compose up -d\n2. 使用配置的 URL 访问 LobeChat',
                 'invalid_port': '无效的端口号。请输入 1-65535 之间的数字。',
@@ -70,6 +74,10 @@ class I18n:
                 'error_dir_not_empty': '目录不为空且用户选择不使用',
                 'error_config_host': '配置主机时出错',
                 'error_config_env': '配置环境变量时出错',
+                'error_loading_init_data': '加载 init_data.json 时出错：{}',
+                'error_saving_init_data': '保存 init_data.json 时出错：{}',
+                'updated_redirect_uris': '已更新 init_data.json 中的重定向 URI',
+                'error_updating_casdoor_config': '更新 init_data.json 中的 Casdoor 配置时出错：{}'
             }
         }
         
