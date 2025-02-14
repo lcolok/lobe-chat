@@ -209,42 +209,13 @@ class HostManager:
         return host, port_config
 
     def _get_port_config(self) -> Dict[str, int]:
-        """获取端口配置，保持现有端口配置
+        """获取端口配置
         
         Returns:
             Dict[str, int]: 端口配置
         """
-        # 获取现有端口配置
-        existing_config = self.config_manager.load_config()
-        existing_ports = existing_config.get('ports', {})
-        
-        # 默认端口配置
-        default_ports = {
-            'lobe': 3210,
-            'casdoor': 8000,
-            'minio': 9000,
-            'minio_console': 9001,
-            'postgres': 5432
-        }
-        
-        # 使用现有配置或默认值
-        port_config = default_ports.copy()
-        port_config.update(existing_ports)
-        
-        # 询问用户确认或修改端口
-        questions = []
-        for service, default_port in port_config.items():
-            questions.append(
-                inquirer.Text(
-                    service,
-                    message=self.i18n.get('ask_port').format(service, default_port),
-                    default=str(default_port),
-                    validate=lambda _, x: x.isdigit() and 1 <= int(x) <= 65535
-                )
-            )
-        
-        answers = inquirer.prompt(questions)
-        return {k: int(v) for k, v in answers.items()}
+        # 不再使用缓存的配置，而是重新配置
+        return self.port_manager.configure_ports()
 
     def _get_mode(self) -> str:
         """获取部署模式

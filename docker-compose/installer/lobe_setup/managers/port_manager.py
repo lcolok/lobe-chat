@@ -22,16 +22,25 @@ class PortManager:
         }
         self.used_ports: Set[int] = set()  # 记录已分配的端口
         
-    def get_used_ports(self) -> List[int]:
-        """获取系统当前使用的所有端口"""
-        used_ports = set()
+        # 清除之前的端口配置
+        self.config_manager.set('ports', {})
+
+    def get_used_ports(self) -> Set[int]:
+        """获取系统当前使用的所有端口
         
-        # 获取所有网络连接
-        for conn in psutil.net_connections():
-            if conn.status == 'LISTEN':
-                used_ports.add(conn.laddr.port)
-                
-        return sorted(list(used_ports))
+        Returns:
+            Set[int]: 已使用的端口集合
+        """
+        used_ports = set()
+        try:
+            # 使用 psutil 获取所有网络连接
+            for conn in psutil.net_connections():
+                # 收集所有本地端口，不管状态如何
+                if conn.laddr:
+                    used_ports.add(conn.laddr.port)
+        except (psutil.Error, OSError):
+            pass
+        return used_ports
         
     def is_port_available(self, port: int) -> bool:
         """检查指定端口是否可用
@@ -118,97 +127,169 @@ class PortManager:
         Returns:
             bool: 如果端口被占用返回 True，否则返回 False
         """
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        try:
+            # 使用 psutil 获取所有网络连接
+            for conn in psutil.net_connections():
+                # 检查任何状态的连接，只要端口匹配就认为是被占用
+                if conn.laddr.port == port:
+                    return True
+            return False
+        except (psutil.Error, OSError):
+            # 如果获取连接信息失败，使用 socket 作为备选方案
             try:
-                s.bind(('localhost', port))
+                # 尝试同时绑定 IPv4 和 IPv6
+                # 先尝试 IPv4
+                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                    s.bind(('127.0.0.1', port))
+                # 再尝试 IPv6
+                with socket.socket(socket.AF_INET6, socket.SOCK_STREAM) as s:
+                    s.bind(('::1', port))
                 return False
             except socket.error:
                 return True
                 
+    def _validate_port(self, port_str: str, system_ports: Set[int]) -> bool:
+        """验证端口号是否有效
+        
+        Args:
+            port_str: 端口号字符串
+            system_ports: 系统已使用的端口集合
+            
+        Returns:
+            bool: 端口号是否有效
+        """
+        try:
+            port = int(port_str)
+            if not 1 <= port <= 65535:
+                print(self.i18n.get('invalid_port'))
+                return False
+                
+            # 检查端口是否已被使用
+            if port in system_ports or port in self.used_ports or self._is_port_in_use(port):
+                print(self.i18n.get('port_in_use').format(port))
+                return False
+                
+            return True
+        except ValueError:
+            print(self.i18n.get('invalid_port'))
+            return False
+
     def _get_postgres_port(self) -> int:
         """获取 PostgreSQL 的端口号
         
         Returns:
             int: PostgreSQL 端口号
         """
-        default_port = 5432
-        next_port = 5433
+        default_port = self.default_ports['postgres']
+        system_ports = self.get_used_ports()
         
-        if self._is_port_in_use(default_port):
-            print(self.i18n.get('postgres_port_conflict').format(port=default_port))
+        # 检查默认端口是否被占用
+        if default_port in system_ports or self._is_port_in_use(default_port):
+            print(self.i18n.get('postgres_port_conflict').format(default_port))
+            # 找到下一个可用端口作为建议
+            next_port = self.find_next_available_port(default_port)
             
             while True:
                 questions = [
                     inquirer.Text(
                         'port',
-                        message=self.i18n.get('postgres_port_prompt').format(port=next_port),
+                        message=self.i18n.get('postgres_port_prompt').format(next_port),
                         default=str(next_port),
-                        validate=lambda _, x: x.isdigit() and 1 <= int(x) <= 65535
+                        validate=lambda _, x: self._validate_port(x, system_ports)
                     )
                 ]
                 
                 answers = inquirer.prompt(questions)
+                if answers is None:  # 用户按了 Ctrl+C
+                    continue
+                    
                 port = int(answers['port'])
-                
-                try:
-                    if self._is_port_in_use(port):
-                        print(self.i18n.get('port_in_use').format(port=port))
-                        continue
-                        
-                    return port
-                    
-                except ValueError:
-                    print(self.i18n.get('invalid_port'))
-                    
-        return default_port
+                # 由于验证函数已经检查过端口可用性，这里可以直接使用
+                self.used_ports.add(port)
+                return port
         
+        # 如果默认端口可用，直接使用
+        self.used_ports.add(default_port)
+        return default_port
+
     def configure_ports(self) -> Dict[str, int]:
         """配置所有服务的端口
-        
+
         Returns:
             Dict[str, int]: 服务端口配置字典
         """
         port_config = {}
         self.used_ports.clear()  # 清空已使用端口列表
         
+        # 获取当前系统已使用的端口列表
+        system_ports = self.get_used_ports()
+        
         for service, default_port in self.default_ports.items():
             if service == 'postgres':
                 port = self._get_postgres_port()
             else:
-                # 检查默认端口是否可用
-                if not self.is_port_available(default_port):
-                    # 找到下一个可用端口
+                # 首先检查默认端口是否被占用
+                if self._is_port_in_use(default_port):
+                    # 找到下一个可用端口作为建议值
                     suggested_port = self.find_next_available_port(default_port)
-                    print(self.i18n.get('ask_port_conflict').format(
-                        service=service,
-                        port=default_port
-                    ))
-                    # 让用户选择端口
-                    port = self.prompt_for_port(service, suggested_port)
-                else:
-                    # 默认端口可用，询问用户是否要修改
+                    print(self.i18n.get('ask_port_conflict').format(service, default_port))
                     questions = [
-                        inquirer.Confirm(
-                            'use_default',
-                            message=self.i18n.get('ask_port').format(
-                                service=service,
-                                port=default_port
-                            ),
-                            default=True
+                        inquirer.Text(
+                            'port',
+                            message=self.i18n.get('ask_port').format(service, suggested_port),
+                            default=str(suggested_port),
+                            validate=lambda _, x: self._validate_port(x, system_ports)
                         )
                     ]
-                    
-                    if inquirer.prompt(questions)['use_default']:
-                        port = default_port
-                    else:
-                        port = self.prompt_for_port(service, default_port)
-            
-            # 记录已分配的端口
-            self.used_ports.add(port)
+                else:
+                    questions = [
+                        inquirer.Text(
+                            'port',
+                            message=self.i18n.get('ask_port').format(service, default_port),
+                            default=str(default_port),
+                            validate=lambda _, x: self._validate_port(x, system_ports)
+                        )
+                    ]
+
+                while True:
+                    answers = inquirer.prompt(questions)
+                    if answers is None:  # 用户按了 Ctrl+C
+                        continue
+                        
+                    port = int(answers['port'])
+                    # 由于验证函数已经检查过端口可用性，这里可以直接使用
+                    self.used_ports.add(port)
+                    break
             
             # 保存端口配置
             port_config[service] = port
             
         # 更新配置
         self.config_manager.set('ports', port_config)
+        return port_config
+
+    def get_port_config(self) -> Dict[str, int]:
+        """获取端口配置
+        
+        Returns:
+            Dict[str, int]: 端口配置字典
+        """
+        # 每次获取配置时都重新检查端口可用性
+        port_config = self.config_manager.get('ports', {})
+        if not port_config:
+            return self.configure_ports()
+            
+        system_ports = self.get_used_ports()
+        needs_reconfigure = False
+        
+        # 检查已保存的端口是否仍然可用
+        for service, port in port_config.items():
+            if port in system_ports or self._is_port_in_use(port):
+                print(self.i18n.get('port_in_use').format(port))
+                needs_reconfigure = True
+                break
+                
+        if needs_reconfigure:
+            return self.configure_ports()
+            
         return port_config
